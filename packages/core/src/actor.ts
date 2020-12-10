@@ -31,7 +31,10 @@ const createActor = (name: string, {initialValue, validate}: Schema) => {
         validating: {
           invoke: {
             src: 'validate',
-            onDone: 'editing',
+            onDone: {
+              target: 'editing',
+              actions: 'notifySuccess',
+            },
             onError: {
               target: 'editing',
               actions: 'notifyError',
@@ -47,6 +50,10 @@ const createActor = (name: string, {initialValue, validate}: Schema) => {
           name,
           error: data,
           type: 'ERROR',
+        })),
+        notifySuccess: sendParent(({name}) => ({
+          name,
+          type: 'NO_ERROR',
         })),
       },
       services: {
