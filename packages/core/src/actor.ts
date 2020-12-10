@@ -10,7 +10,7 @@ type Events = {type: 'BLUR'; value: unknown};
 
 type States = {value: 'editing' | 'validating'; context: Context};
 
-const createActor = (name: string, {initialValue, ...config}: Schema) => {
+const createActor = (name: string, {initialValue, validate}: Schema) => {
   return createMachine<Context, Events, States>(
     {
       id: `${name}-actor`,
@@ -18,7 +18,6 @@ const createActor = (name: string, {initialValue, ...config}: Schema) => {
       context: {
         name,
         value: initialValue,
-        ...config,
       },
       states: {
         editing: {
@@ -44,13 +43,14 @@ const createActor = (name: string, {initialValue, ...config}: Schema) => {
     {
       actions: {
         assignValue: assign({value: (_, {value}) => value}),
-        notifyError: sendParent((_, {data}: any) => ({
-          type: 'ERROR',
+        notifyError: sendParent(({name}, {data}: any) => ({
+          name,
           error: data,
+          type: 'ERROR',
         })),
       },
       services: {
-        validate({value, validate}) {
+        validate({value}) {
           const res = validate?.(value);
 
           if (res) {
