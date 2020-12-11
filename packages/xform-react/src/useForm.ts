@@ -2,12 +2,12 @@ import {useRef} from 'react';
 import {useService} from '@xstate/react';
 
 // @ts-ignore
-import {Config, useForm as useFormService} from 'xform';
+import {Config, useForm as _useForm} from 'xform';
 
 export default function useForm<T, K = unknown>(config: Config<T, K>) {
   const {
     current: {service, ...rest},
-  } = useRef(useFormService(config));
+  } = useRef(_useForm(config));
 
   const [state] = useService(service) as any;
 

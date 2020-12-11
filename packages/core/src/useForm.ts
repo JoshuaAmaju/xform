@@ -24,12 +24,10 @@ export default function useForm<T = any, K = unknown>(config: Config<T, K>) {
   const service = interpret(createFormMachine(config));
 
   const subscribe = (callback: Subscriber<T>) => {
-    return service.subscribe((state) => {
+    service.onTransition((state) => {
       const {
         context: {data, values, error, errors},
       } = state;
-
-      console.log(state.value);
 
       const hasErrors = errors.size > 0;
 
