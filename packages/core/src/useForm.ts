@@ -77,6 +77,5 @@ export default function useForm<T = any, K = unknown>(config: Config<T, K>) {
     onChange,
     handlers,
     subscribe,
-    shcema: config.schema,
   };
 }

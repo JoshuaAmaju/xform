@@ -1,5 +1,5 @@
 {
-  "name": "core",
+  "name": "xform",
   "version": "1.0.0",
   "description": "> TODO: description",
   "keywords": [
@@ -9,7 +9,7 @@
     "data"
   ],
   "author": "Joshua Amaju <joshua.amaju@polarisdigitech.net>",
-  "homepage": "",
+  "homepage": "https://github.com/JoshuaAmaju/xform#readme",
   "license": "MIT",
   "main": "lib/core.js",
   "module": "es/core.js",
@@ -31,5 +31,15 @@
   },
   "devDependencies": {
     "parcel-bundler": "^1.12.4"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/JoshuaAmaju/xform.git"
+  },
+  "bugs": {
+    "url": "https://github.com/JoshuaAmaju/xform/issues"
+  },
+  "peerDependencies": {
+    "@xstate/react": "^1.1.0"
   }
 }
