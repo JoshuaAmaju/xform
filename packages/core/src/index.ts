@@ -1,3 +1,7 @@
-const add = (a: number, b: number) => a + b;
+import useForm from './useForm';
+import createActor from './actor';
+import createFormMachine from './machine';
 
-console.log(add(4, 5));
+export * from './types';
+
+export {useForm, createActor, createFormMachine};

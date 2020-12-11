@@ -6,26 +6,30 @@ import {
   SpawnedActorRef,
   send,
 } from 'xstate';
+import {choose, log, pure} from 'xstate/lib/actions';
 import createActor from './actor';
 import {Config, XRecord} from './types';
+import {toLabel} from './utils';
 
-type Context<T, K = unknown> = {
+export type Context<T, K = unknown> = {
   data?: K;
   values: XRecord<T>;
   error?: Error | string;
-  errors: Map<string, string>;
+  errors: Map<keyof T, string>;
+  actorValidationCounter: number;
   actors?: Record<keyof T, SpawnedActorRef<any>>;
 };
 
 type Events<T> =
-  | {type: 'BLUR'; name: string; value: T[keyof T]}
+  | {type: 'BLUR'; name: keyof T; value: T[keyof T]}
+  | {type: 'EDIT'; name: keyof T; value: T[keyof T]}
   | {type: 'ERROR'; name: keyof T; error: string}
   | {type: 'NO_ERROR'; name: string}
   | {type: 'SUBMIT'};
 
 type States<T, K = unknown> =
   | {
-      value: 'editing' | 'validating' | 'submitting';
+      value: 'editing' | 'validating' | 'submitting' | 'validatingActors';
       context: Context<T, K>;
     }
   | {
@@ -38,7 +42,7 @@ const createFormMachine = <T, K>({
   onSubmit,
   validate,
   once = false,
-}: Config<T>) => {
+}: Config<T, K>) => {
   return createMachine<Context<T, K>, Events<T>, States<T, K>>(
     {
       id: 'form',
@@ -46,6 +50,7 @@ const createFormMachine = <T, K>({
       context: {
         errors: new Map(),
         values: {} as XRecord<T>,
+        actorValidationCounter: 0,
         actors: {} as Context<T, K>['actors'],
       },
       entry: assign((ctx) => {
@@ -71,10 +76,10 @@ const createFormMachine = <T, K>({
             BLUR: {
               actions: ['sendActor', 'assignValue'],
             },
-            SUBMIT: {
-              target: 'validating',
-              cond: 'noError',
+            EDIT: {
+              actions: 'assignValue',
             },
+            SUBMIT: 'validating',
           },
         },
         validating: {
@@ -88,6 +93,7 @@ const createFormMachine = <T, K>({
           },
         },
         submitting: {
+          entry: 'clearError',
           invoke: {
             src: 'submitForm',
             onDone: [
@@ -114,12 +120,22 @@ const createFormMachine = <T, K>({
       },
     },
     {
-      guards: {
-        noError: ({errors}) => errors.size <= 0,
-      },
       actions: {
         assignData: assign({data: (_, {data}: any) => data}),
         assignError: assign({error: (_, {data}: any) => data}),
+        clearError: assign((ctx) => ({...ctx, error: undefined})),
+        sendActor: send((_, e) => e, {to: (_, {name}: any) => name}),
+
+        assignValue: assign({
+          values: ({values}, {name, value}: any) => {
+            return {...values, [name]: value};
+          },
+        }),
+
+        assignErrors: assign({
+          errors: (_, {data}: any) => data,
+        }),
+
         assignActorError: assign({
           errors: ({errors}, {name, error}: any) => {
             const errs = new Map(errors);
@@ -127,19 +143,12 @@ const createFormMachine = <T, K>({
             return errs;
           },
         }),
+
         clearActorError: assign({
           errors: ({errors}, {name}: any) => {
             const errs = new Map(errors);
             errs.delete(name);
             return errs;
-          },
-        }),
-
-        sendActor: send((_, e) => e, {to: (_, {name}: any) => name}),
-
-        assignValue: assign({
-          values: ({values}, {name, value}: any) => {
-            return {...values, [name]: value};
           },
         }),
       },
@@ -148,10 +157,29 @@ const createFormMachine = <T, K>({
           return onSubmit(values);
         },
         validateForm({values}) {
-          const res = validate?.(values);
+          let errors = {} as any;
 
-          if (res) {
-            const entries = Object.entries(res);
+          if (validate) {
+            errors = validate?.(values);
+          } else {
+            Object.keys(schema).forEach((key) => {
+              const _key = key as keyof T;
+              const value = values[_key];
+              const {validate, required} = schema[_key];
+              const res = validate?.(value);
+
+              if (validate) {
+                if (res) errors[_key] = res;
+              } else {
+                if (required && !value) {
+                  errors[_key] = `${toLabel(key)} is required.`;
+                }
+              }
+            });
+          }
+
+          if (Object.values(errors).some((e) => e)) {
+            const entries = Object.entries(errors);
             return Promise.reject(new Map(entries));
           }
 

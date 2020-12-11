@@ -1,16 +1,21 @@
 import {assign, createMachine, sendParent} from 'xstate';
 import {Schema} from './types';
+import {toLabel} from './utils';
 
 type Context = {
   name: string;
   value?: unknown;
-} & Omit<Schema, 'initialValue'>;
+  isValidateEvent?: boolean;
+} & Omit<Schema<any>, 'initialValue'>;
 
-type Events = {type: 'BLUR'; value: unknown};
+type Events = {type: 'BLUR'; value: unknown} | {type: 'VALIDATE'};
 
 type States = {value: 'editing' | 'validating'; context: Context};
 
-const createActor = (name: string, {initialValue, validate}: Schema) => {
+const createActor = (
+  name: string,
+  {initialValue, validate, required}: Schema<any>
+) => {
   return createMachine<Context, Events, States>(
     {
       id: `${name}-actor`,
@@ -22,6 +27,7 @@ const createActor = (name: string, {initialValue, validate}: Schema) => {
       states: {
         editing: {
           on: {
+            VALIDATE: 'validating',
             BLUR: {
               target: 'validating',
               actions: 'assignValue',
@@ -45,7 +51,7 @@ const createActor = (name: string, {initialValue, validate}: Schema) => {
     },
     {
       actions: {
-        assignValue: assign({value: (_, {value}) => value}),
+        assignValue: assign({value: (_, {value}: any) => value}),
         notifyError: sendParent(({name}, {data}: any) => ({
           name,
           error: data,
@@ -62,6 +68,10 @@ const createActor = (name: string, {initialValue, validate}: Schema) => {
 
           if (res) {
             return Promise.reject(res);
+          }
+
+          if (required && !value) {
+            return Promise.reject(`${toLabel(name)} is required.`);
           }
 
           return Promise.resolve();
