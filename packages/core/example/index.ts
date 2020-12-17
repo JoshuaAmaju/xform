@@ -1,35 +1,49 @@
-import {useForm} from '../src';
+import {useForm, Types} from '../src';
 
 const form = document.querySelector('form');
-const button = document.querySelector('button');
+const saveForm = document.querySelector('#save');
+const formState = document.querySelector('#state');
+const submitForm = document.querySelector('#submit');
 
-const name = document.querySelector('#name') as HTMLInputElement;
+const email = document.querySelector('#email') as HTMLInputElement;
 const password = document.querySelector('#password') as HTMLInputElement;
 
 type Form = {
-  name: string;
+  email: string;
   password: number;
 };
 
-const {submit, handlers, subscribe} = useForm<Form>({
+const {save, submit, handlers, subscribe, restore} = useForm<Form>({
   schema: {
-    name: 'string',
+    email: {
+      type: Types.ARRAY,
+    },
     password: {
       required: true,
     },
   },
   onSubmit: () => Promise.resolve('Form submitted'),
+  onSave: (state) => localStorage.setItem('form', JSON.stringify(state)),
+});
+
+document.addEventListener('DOMContentLoaded', () => {
+  const res = localStorage.getItem('form');
+  restore(JSON.parse(res));
 });
 
 // @ts-ignore
-name.addEventListener('blur', ({target: {value}}) =>
-  handlers.name.onBlur(value)
+email.addEventListener('blur', ({target: {value}}) =>
+  handlers.email.onBlur(value)
 );
 
 // @ts-ignore
 password.addEventListener('blur', ({target: {value}}) =>
   handlers.password.onBlur(value)
 );
+
+saveForm.addEventListener('click', (_) => {
+  save();
+});
 
 form.addEventListener('submit', (e: any) => {
   e.preventDefault();
@@ -38,15 +52,28 @@ form.addEventListener('submit', (e: any) => {
 
 subscribe(
   ({
-    errors,
     data,
+    saved,
     values,
+    errors,
     hasError,
+    isSaving,
     hasErrors,
+    submitted,
     isSubmitting,
     attemptedSubmit,
   }) => {
-    console.log(values);
+    formState.innerHTML = isSaving
+      ? 'saving'
+      : isSubmitting
+      ? 'submitting'
+      : submitted
+      ? 'submitted'
+      : saved
+      ? 'saved'
+      : 'idle';
+
+    console.log(errors);
 
     if (attemptedSubmit) {
       alert('Please fill all fields');
@@ -54,13 +81,11 @@ subscribe(
 
     // button.disabled = hasErrors;
 
-    if (hasError('name')) {
-      name.classList.add('error');
+    if (hasError('email')) {
+      email.classList.add('error');
     } else {
-      name.classList.remove('error');
+      email.classList.remove('error');
     }
-
-    console.log(name.validationMessage);
 
     if (hasError('password')) {
       password.classList.add('error');

@@ -73,8 +73,12 @@ const createActor = <T>(
           let response: string;
           const label = toLabel(name);
 
-          if (value && type && typeof value !== type) {
-            response = `${label} should be a ${type}.`;
+          if (value && type) {
+            try {
+              type.exec(label, value);
+            } catch (error) {
+              response = error;
+            }
           }
 
           if (required && !value) {

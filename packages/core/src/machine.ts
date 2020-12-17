@@ -1,4 +1,11 @@
-import {assign, createMachine, send, spawn, SpawnedActorRef} from 'xstate';
+import {
+  assign,
+  createMachine,
+  send,
+  spawn,
+  SpawnedActorRef,
+  State,
+} from 'xstate';
 import {choose, pure} from 'xstate/lib/actions';
 import createActor from './actor';
 import {Config, XRecord} from './types';
@@ -8,21 +15,29 @@ export type Context<T, K = unknown> = {
   data?: K;
   error?: Error;
   values: XRecord<T>;
+  type: 'save' | 'submit';
   validatedActors: string[];
   errors: Map<keyof T, string>;
   actors?: Record<keyof T, SpawnedActorRef<any>>;
 };
 
-type Events<T> =
+export type Events<T, K> =
   | {type: 'BLUR'; name: keyof T; value: T[keyof T]}
   | {type: 'EDIT'; name: keyof T; value: T[keyof T]}
   | {type: 'ERROR'; name: keyof T; error: string}
   | {type: 'NO_ERROR'; name: string}
+  | {type: 'SET_BULK'; values: XRecord<T>}
+  | {type: 'SAVE'; validate?: boolean; state: State<Context<T, K>>}
   | {type: 'SUBMIT'};
 
-type States<T, K = unknown> =
+export type States<T, K = unknown> =
   | {
-      value: 'editing' | 'validating' | 'submitting' | 'validatingActors';
+      value:
+        | 'editing'
+        | 'validating'
+        | 'submitting'
+        | 'validatingActors'
+        | 'saving';
       context: Context<T, K>;
     }
   | {
@@ -36,6 +51,7 @@ const allActorsValidated = ({actors, validatedActors}: any) => {
 
 const createFormMachine = <T, K>({
   schema,
+  onSave,
   onSubmit,
   validate,
   once = false,
@@ -48,27 +64,23 @@ const createFormMachine = <T, K>({
     values[key] = initialValue;
   });
 
-  return createMachine<Context<T, K>, Events<T>, States<T, K>>(
+  return createMachine<Context<T, K>, Events<T, K>, States<T, K>>(
     {
       id: 'form',
       initial: 'editing',
       context: {
         values,
+        type: 'submit',
         errors: new Map(),
         validatedActors: [],
         actors: {} as Context<T, K>['actors'],
       },
-      entry: assign((ctx) => {
-        const actors = {} as Context<T, K>['actors'];
-
-        Object.keys(schema).forEach((key) => {
-          const _key = key as keyof T;
-          const value = toSchema(schema[_key]);
-          actors[_key] = spawn(createActor(key, value), key);
-        });
-
-        return {...ctx, actors};
-      }),
+      entry: 'spawnActors',
+      on: {
+        SET_BULK: {
+          actions: 'assignBulk',
+        },
+      },
       states: {
         editing: {
           on: {
@@ -85,6 +97,14 @@ const createFormMachine = <T, K>({
               actions: 'assignValue',
             },
             SUBMIT: 'validatingActors',
+            SAVE: [
+              {
+                target: 'validatingActors',
+                cond: (_, {validate}) => validate,
+                actions: assign({type: (_) => 'save'}),
+              },
+              {target: 'saving'},
+            ],
           },
         },
         validatingActors: {
@@ -117,7 +137,13 @@ const createFormMachine = <T, K>({
         validating: {
           invoke: {
             src: 'validateForm',
-            onDone: 'submitting',
+            onDone: [
+              {
+                target: 'submitting',
+                cond: ({type}) => type === 'submit',
+              },
+              {target: 'saving'},
+            ],
             onError: {
               target: 'editing',
               actions: 'assignErrors',
@@ -145,6 +171,16 @@ const createFormMachine = <T, K>({
             },
           },
         },
+        saving: {
+          invoke: {
+            src: 'saveForm',
+            onDone: 'editing',
+            onError: {
+              target: 'editing',
+              actions: 'assignError',
+            },
+          },
+        },
         submitted: {
           type: 'final',
           data: ({data}) => data,
@@ -164,6 +200,8 @@ const createFormMachine = <T, K>({
         assignError: assign({error: (_, {data}: any) => data}),
         clearError: assign((ctx) => ({...ctx, error: undefined})),
         sendActor: send((_, e) => e, {to: (_, {name}: any) => name}),
+
+        assignBulk: assign({values: (_, {values}: any) => values}),
 
         assignValue: assign({
           values: ({values}, {name, value}: any) => {
@@ -204,10 +242,25 @@ const createFormMachine = <T, K>({
         }),
 
         clearMarkedActors: assign({validatedActors: () => []}),
+
+        spawnActors: assign((ctx) => {
+          const actors = {} as Context<T, K>['actors'];
+
+          Object.keys(schema).forEach((key) => {
+            const _key = key as keyof T;
+            const value = toSchema(schema[_key]);
+            actors[_key] = spawn(createActor(key, value), key);
+          });
+
+          return {...ctx, actors};
+        }),
       },
       services: {
         submitForm({values}) {
           return onSubmit(values);
+        },
+        async saveForm({values}) {
+          return await onSave(values);
         },
         validateForm({values}) {
           let errors = validate?.(values);
