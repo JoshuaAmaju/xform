@@ -2,21 +2,21 @@ import {assign, createMachine, sendParent} from 'xstate';
 import {Schema} from './types';
 import {toLabel} from './utils';
 
-type Context = {
+type Context<T> = {
+  value?: T;
   name: string;
-  value?: unknown;
   isValidateEvent?: boolean;
 } & Omit<Schema<any>, 'initialValue'>;
 
-type Events = {type: 'BLUR'; value: unknown} | {type: 'VALIDATE'};
+type Events<T> = {type: 'BLUR'; value: T} | {type: 'VALIDATE'};
 
-type States = {value: 'editing' | 'validating'; context: Context};
+type States<T> = {value: 'editing' | 'validating'; context: Context<T>};
 
-const createActor = (
+const createActor = <T>(
   name: string,
-  {initialValue, validate, required}: Schema<any>
+  {type, validate, required, initialValue}: Schema<T>
 ) => {
-  return createMachine<Context, Events, States>(
+  return createMachine<Context<T>, Events<T>, States<T>>(
     {
       id: `${name}-actor`,
       initial: 'editing',
@@ -70,8 +70,19 @@ const createActor = (
             return Promise.reject(res);
           }
 
+          let response: string;
+          const label = toLabel(name);
+
+          if (value && type && typeof value !== type) {
+            response = `${label} should be a ${type}.`;
+          }
+
           if (required && !value) {
-            return Promise.reject(`${toLabel(name)} is required.`);
+            response = `${label} is required.`;
+          }
+
+          if (response) {
+            return Promise.reject(response);
           }
 
           return Promise.resolve();

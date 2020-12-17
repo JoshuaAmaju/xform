@@ -1,9 +1,10 @@
 import {useForm} from '../src';
 
 const form = document.querySelector('form');
-const name = document.querySelector('#name');
 const button = document.querySelector('button');
-const password = document.querySelector('#password');
+
+const name = document.querySelector('#name') as HTMLInputElement;
+const password = document.querySelector('#password') as HTMLInputElement;
 
 type Form = {
   name: string;
@@ -12,11 +13,9 @@ type Form = {
 
 const {submit, handlers, subscribe} = useForm<Form>({
   schema: {
-    name: {
-      required: true,
-    },
+    name: 'string',
     password: {
-      validate: (val) => !val && 'Password is required',
+      required: true,
     },
   },
   onSubmit: () => Promise.resolve('Form submitted'),
@@ -37,20 +36,36 @@ form.addEventListener('submit', (e: any) => {
   submit();
 });
 
-subscribe(({errors, data, values, hasError, hasErrors, isSubmitting}) => {
-  console.log(values, errors, isSubmitting, data);
+subscribe(
+  ({
+    errors,
+    data,
+    values,
+    hasError,
+    hasErrors,
+    isSubmitting,
+    attemptedSubmit,
+  }) => {
+    console.log(values);
 
-  button.disabled = hasErrors;
+    if (attemptedSubmit) {
+      alert('Please fill all fields');
+    }
 
-  if (hasError('name')) {
-    name.classList.add('error');
-  } else {
-    name.classList.remove('error');
+    // button.disabled = hasErrors;
+
+    if (hasError('name')) {
+      name.classList.add('error');
+    } else {
+      name.classList.remove('error');
+    }
+
+    console.log(name.validationMessage);
+
+    if (hasError('password')) {
+      password.classList.add('error');
+    } else {
+      password.classList.remove('error');
+    }
   }
-
-  if (hasError('password')) {
-    password.classList.add('error');
-  } else {
-    password.classList.remove('error');
-  }
-});
+);

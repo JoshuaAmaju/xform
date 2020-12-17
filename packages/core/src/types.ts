@@ -3,12 +3,13 @@ import {State} from 'xstate';
 export type XRecord<T> = {[K in keyof T]: T[K]};
 
 export type Schema<T> = {
+  type?: unknown;
   initialValue?: T;
   required?: boolean;
   validate?: (value: T) => string | void;
 };
 
-export type ValidationSchema<T> = {[K in keyof T]: Schema<T[K]>};
+export type ValidationSchema<T> = {[K in keyof T]: string | Schema<T[K]>};
 
 export type Config<T, K> = {
   once?: boolean;
