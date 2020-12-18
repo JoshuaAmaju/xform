@@ -1,6 +1,6 @@
 import {interpret, State} from 'xstate';
-import createFormMachine, {Context, Events} from './machine';
-import {Config, StorageAdapter, XRecord} from './types';
+import createFormMachine, {Context, Events, SetType} from './machine';
+import {Config, StorageAdapter} from './types';
 
 type SubscriberHelpers<T> = {
   saved: boolean;
@@ -91,8 +91,8 @@ export default function useForm<T = any, K = unknown>({
     service.send('SUBMIT');
   };
 
-  const restore = (values: XRecord<T>) => {
-    service.send({type: 'SET_BULK', values});
+  const set = (values: SetType<T, K>) => {
+    service.send({type: 'SET', ...values});
   };
 
   const save = (validate?: boolean) => {
@@ -126,10 +126,10 @@ export default function useForm<T = any, K = unknown>({
   if (autoSave) restoreState();
 
   return {
+    set,
     save,
     submit,
     onBlur,
-    restore,
     service,
     onChange,
     handlers,

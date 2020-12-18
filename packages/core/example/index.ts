@@ -13,7 +13,7 @@ type Form = {
   password: number;
 };
 
-const {save, submit, handlers, subscribe, restore} = useForm<Form>({
+const {save, submit, handlers, subscribe, set} = useForm<Form>({
   schema: {
     email: {
       type: Types.ARRAY,
@@ -28,7 +28,7 @@ const {save, submit, handlers, subscribe, restore} = useForm<Form>({
 
 document.addEventListener('DOMContentLoaded', () => {
   const res = localStorage.getItem('form');
-  restore(JSON.parse(res));
+  set({name: 'values', value: JSON.parse(res)});
 });
 
 // @ts-ignore
@@ -78,8 +78,6 @@ subscribe(
     if (attemptedSubmit) {
       alert('Please fill all fields');
     }
-
-    // button.disabled = hasErrors;
 
     if (hasError('email')) {
       email.classList.add('error');

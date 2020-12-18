@@ -21,12 +21,18 @@ export type Context<T, K = unknown> = {
   actors?: Record<keyof T, SpawnedActorRef<any>>;
 };
 
+export type SetType<T, K> =
+  | {name: 'data'; value: Context<T, K>['data']}
+  | {name: 'values'; value: Context<T, K>['values']}
+  | {name: 'error'; value: Context<T, K>['error']}
+  | {name: 'errors'; value: Context<T, K>['errors']};
+
 export type Events<T, K> =
   | {type: 'BLUR'; name: keyof T; value: T[keyof T]}
   | {type: 'EDIT'; name: keyof T; value: T[keyof T]}
   | {type: 'ERROR'; name: keyof T; error: string}
+  | ({type: 'SET'} & SetType<T, K>)
   | {type: 'NO_ERROR'; name: string}
-  | {type: 'SET_BULK'; values: XRecord<T>}
   | {type: 'SAVE'; validate?: boolean; state: State<Context<T, K>>}
   | {type: 'SUBMIT'};
 
@@ -77,8 +83,8 @@ const createFormMachine = <T, K>({
       },
       entry: 'spawnActors',
       on: {
-        SET_BULK: {
-          actions: 'assignBulk',
+        SET: {
+          actions: 'setValue',
         },
       },
       states: {
@@ -201,7 +207,9 @@ const createFormMachine = <T, K>({
         clearError: assign((ctx) => ({...ctx, error: undefined})),
         sendActor: send((_, e) => e, {to: (_, {name}: any) => name}),
 
-        assignBulk: assign({values: (_, {values}: any) => values}),
+        setValue: assign((ctx, {name, value}: any) => {
+          return {...ctx, [name]: value};
+        }),
 
         assignValue: assign({
           values: ({values}, {name, value}: any) => {
