@@ -28,12 +28,11 @@ export type SetType<T, K> =
   | {name: 'errors'; value: Context<T, K>['errors']};
 
 export type Events<T, K> =
-  | {type: 'BLUR'; name: keyof T; value: T[keyof T]}
-  | {type: 'EDIT'; name: keyof T; value: T[keyof T]}
-  | {type: 'ERROR'; name: keyof T; error: string}
+  | {type: 'BLUR' | 'EDIT'; name: keyof T; value: T[keyof T]}
+  | {type: 'ACTOR_ERROR'; name: keyof T; error: string}
   | ({type: 'SET'} & SetType<T, K>)
-  | {type: 'NO_ERROR'; name: string}
-  | {type: 'SAVE'; validate?: boolean; state: State<Context<T, K>>}
+  | {type: 'ACTOR_NO_ERROR'; name: string}
+  | {type: 'SAVE'; validate?: boolean}
   | {type: 'SUBMIT'};
 
 export type States<T, K = unknown> =
@@ -43,7 +42,8 @@ export type States<T, K = unknown> =
         | 'validating'
         | 'submitting'
         | 'validatingActors'
-        | 'saving';
+        | 'saving'
+        | 'saved';
       context: Context<T, K>;
     }
   | {
@@ -84,23 +84,31 @@ const createFormMachine = <T, K>({
       entry: 'spawnActors',
       on: {
         SET: {
-          actions: 'setValue',
+          actions: [
+            'setValue',
+            choose([
+              {
+                actions: 'sendEditToActors',
+                cond: (_, {name}) => name === 'values',
+              },
+            ]),
+          ],
         },
       },
       states: {
         editing: {
           on: {
-            ERROR: {
+            ACTOR_ERROR: {
               actions: 'assignActorError',
             },
-            NO_ERROR: {
+            ACTOR_NO_ERROR: {
               actions: 'clearActorError',
             },
             BLUR: {
-              actions: ['sendActor', 'assignValue'],
+              actions: ['sendBlurToActor', 'assignValue'],
             },
             EDIT: {
-              actions: 'assignValue',
+              actions: ['sendEditToActor', 'assignValue'],
             },
             SUBMIT: 'validatingActors',
             SAVE: [
@@ -135,6 +143,7 @@ const createFormMachine = <T, K>({
                     actions: 'assignActorError',
                     cond: 'isErrorEvent',
                   },
+                  {actions: 'clearActorError'},
                 ]),
               ],
             },
@@ -180,12 +189,21 @@ const createFormMachine = <T, K>({
         saving: {
           invoke: {
             src: 'saveForm',
-            onDone: 'editing',
+            onDone: [
+              {
+                target: 'saved',
+                cond: () => once,
+              },
+              {target: 'editing'},
+            ],
             onError: {
               target: 'editing',
               actions: 'assignError',
             },
           },
+        },
+        saved: {
+          type: 'final',
         },
         submitted: {
           type: 'final',
@@ -196,7 +214,7 @@ const createFormMachine = <T, K>({
     {
       guards: {
         allActorsValidated,
-        isErrorEvent: (_, {type}) => type === 'ERROR',
+        isErrorEvent: (_, {type}) => type === 'ACTOR_ERROR',
         allActorsValidatedAndHasErrors: ({errors, ...ctx}) => {
           return allActorsValidated(ctx) && errors.size > 0;
         },
@@ -205,7 +223,14 @@ const createFormMachine = <T, K>({
         assignData: assign({data: (_, {data}: any) => data}),
         assignError: assign({error: (_, {data}: any) => data}),
         clearError: assign((ctx) => ({...ctx, error: undefined})),
-        sendActor: send((_, e) => e, {to: (_, {name}: any) => name}),
+
+        sendBlurToActor: send((_, e) => ({...e, validate: true}), {
+          to: (_, {name}: any) => name,
+        }),
+
+        sendEditToActor: send((_, e) => e, {
+          to: (_, {name}: any) => name,
+        }),
 
         setValue: assign((ctx, {name, value}: any) => {
           return {...ctx, [name]: value};
@@ -235,6 +260,12 @@ const createFormMachine = <T, K>({
             errs.delete(name);
             return errs;
           },
+        }),
+
+        sendEditToActors: pure(({actors}, {value}: any) => {
+          return Object.keys(actors).map((key) => {
+            return send({type: 'EDIT', value: value?.[key]}, {to: key});
+          });
         }),
 
         sendValidateToActors: pure(({actors}) => {
@@ -268,12 +299,12 @@ const createFormMachine = <T, K>({
           return onSubmit(values);
         },
         async saveForm({values}) {
-          return await onSave(values);
+          return onSave(values);
         },
         validateForm({values}) {
           let errors = validate?.(values);
 
-          if (errors && Object.values(errors).some((e) => e)) {
+          if (errors && Object.values(errors).length > 0) {
             const entries = Object.entries(errors);
             return Promise.reject(new Map(entries));
           }

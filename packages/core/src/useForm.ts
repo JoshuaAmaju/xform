@@ -8,7 +8,7 @@ type SubscriberHelpers<T> = {
   hasErrors: boolean;
   submitted: boolean;
   isSubmitting: boolean;
-  attemptedSubmit?: boolean;
+  attemptedSaveOrSubmit?: boolean;
   hasError(name: keyof T): boolean;
 };
 
@@ -50,7 +50,7 @@ export default function useForm<T = any, K = unknown>({
 
       const hasError = (name: keyof T) => errors.has(name);
 
-      const attemptedSubmit =
+      const attemptedSaveOrSubmit =
         state.matches('editing') &&
         (state.history?.matches('validatingActors') ||
           state.history?.matches('validating'));
@@ -73,7 +73,7 @@ export default function useForm<T = any, K = unknown>({
         hasErrors,
         submitted,
         isSubmitting,
-        attemptedSubmit,
+        attemptedSaveOrSubmit,
       });
 
       const {
@@ -96,7 +96,7 @@ export default function useForm<T = any, K = unknown>({
   };
 
   const save = (validate?: boolean) => {
-    service.send({type: 'SAVE', state: service.state, validate});
+    service.send({type: 'SAVE', validate});
   };
 
   const onBlur = <K extends keyof T>(name: K, value: T[K]) => {

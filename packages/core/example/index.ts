@@ -4,19 +4,20 @@ const form = document.querySelector('form');
 const saveForm = document.querySelector('#save');
 const formState = document.querySelector('#state');
 const submitForm = document.querySelector('#submit');
+const clearSaved = document.querySelector('#clear-saved');
 
 const email = document.querySelector('#email') as HTMLInputElement;
 const password = document.querySelector('#password') as HTMLInputElement;
 
 type Form = {
   email: string;
-  password: number;
+  password: string;
 };
 
 const {save, submit, handlers, subscribe, set} = useForm<Form>({
   schema: {
     email: {
-      type: Types.ARRAY,
+      required: true,
     },
     password: {
       required: true,
@@ -33,7 +34,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // @ts-ignore
 email.addEventListener('blur', ({target: {value}}) =>
-  handlers.email.onBlur(value)
+  handlers.email.onChange(value)
 );
 
 // @ts-ignore
@@ -42,7 +43,11 @@ password.addEventListener('blur', ({target: {value}}) =>
 );
 
 saveForm.addEventListener('click', (_) => {
-  save();
+  save(true);
+});
+
+clearSaved.addEventListener('click', () => {
+  localStorage.removeItem('form');
 });
 
 form.addEventListener('submit', (e: any) => {
@@ -52,16 +57,13 @@ form.addEventListener('submit', (e: any) => {
 
 subscribe(
   ({
-    data,
     saved,
     values,
-    errors,
     hasError,
     isSaving,
-    hasErrors,
     submitted,
     isSubmitting,
-    attemptedSubmit,
+    attemptedSaveOrSubmit,
   }) => {
     formState.innerHTML = isSaving
       ? 'saving'
@@ -73,11 +75,12 @@ subscribe(
       ? 'saved'
       : 'idle';
 
-    console.log(errors);
-
-    if (attemptedSubmit) {
+    if (attemptedSaveOrSubmit) {
       alert('Please fill all fields');
     }
+
+    if (values?.email) email.value = values.email;
+    if (values?.password) password.value = values.password;
 
     if (hasError('email')) {
       email.classList.add('error');

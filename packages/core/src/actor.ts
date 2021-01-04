@@ -4,11 +4,11 @@ import {toLabel} from './utils';
 
 type Context<T> = {
   value?: T;
-  name: string;
-  isValidateEvent?: boolean;
 } & Omit<Schema<any>, 'initialValue'>;
 
-type Events<T> = {type: 'BLUR'; value: T} | {type: 'VALIDATE'};
+type Events<T> =
+  | {type: 'BLUR' | 'EDIT'; value: T; validate?: boolean}
+  | {type: 'VALIDATE'};
 
 type States<T> = {value: 'editing' | 'validating'; context: Context<T>};
 
@@ -21,7 +21,6 @@ const createActor = <T>(
       id: `${name}-actor`,
       initial: 'editing',
       context: {
-        name,
         value: initialValue,
       },
       states: {
@@ -30,6 +29,9 @@ const createActor = <T>(
             VALIDATE: 'validating',
             BLUR: {
               target: 'validating',
+              actions: 'assignValue',
+            },
+            EDIT: {
               actions: 'assignValue',
             },
           },
@@ -51,15 +53,17 @@ const createActor = <T>(
     },
     {
       actions: {
-        assignValue: assign({value: (_, {value}: any) => value}),
-        notifyError: sendParent(({name}, {data}: any) => ({
+        assignValue: assign({
+          value: (_, {value}: any) => value,
+        }),
+        notifyError: sendParent((_, {data}: any) => ({
           name,
           error: data,
-          type: 'ERROR',
+          type: 'ACTOR_ERROR',
         })),
-        notifySuccess: sendParent(({name}) => ({
+        notifySuccess: sendParent((_) => ({
           name,
-          type: 'NO_ERROR',
+          type: 'ACTOR_NO_ERROR',
         })),
       },
       services: {
